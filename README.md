@@ -5,6 +5,10 @@ Designed for simple, fast development of JSON-RPC services with decorator-based 
 
 ---
 
+> Developed as part of a learning project to understand client-server communication and Python frameworks.
+
+---
+
 ## Table of contents
 
 * [Overview](#overview)
@@ -66,24 +70,52 @@ pip install -r requirements.txt
 Minimal server using the registry and decorator API:
 
 ```python
-# examples/simple_server.py
+# ----------------------------------------
+# Simple JSON-RPC server example using rpcframework
+# ----------------------------------------
+
+# Import RPCMethodRegistry to register and run RPC methods
 from rpcframework.server.registry import RPCMethodRegistry
 
-settings = {"host": "127.0.0.1", "port": 8001, "mount_path": "/jsonrpc"}
+# Server configuration settings
+# host: local address, port: where server runs, mount_path: RPC endpoint URL
+settings = {
+    "host": "127.0.0.1",
+    "port": 8001,
+    "mount_path": "/jsonrpc"
+}
+
+# Create RPCMethodRegistry instance
+# This object handles registration and execution of RPC methods
 rpc = RPCMethodRegistry(name="example", settings=settings)
+
+# ----------------------------------------
+# Define and register RPC methods
+# ----------------------------------------
 
 @rpc.register("add", description="Add two numbers")
 def add(a: float, b: float) -> float:
+    """Return the sum of two numbers."""
     return a + b
+
 
 @rpc.register("divide", description="Divide two numbers")
 def divide(a: float, b: float) -> float:
+    """Return the division result of two numbers."""
     if float(b) == 0:
+        # Handle division by zero error
         raise ValueError("Division by zero")
     return float(a) / float(b)
 
+
+# ----------------------------------------
+# Run the server
+# ----------------------------------------
 if __name__ == "__main__":
+    # Start the RPC server on host:port
+    # It will listen for requests at http://127.0.0.1:8001/jsonrpc
     rpc.run(host="127.0.0.1", port=8001)
+
 ```
 
 Run:
@@ -101,34 +133,59 @@ Server listens at `http://127.0.0.1:8001/jsonrpc`. Introspection is available at
 Example async client usage via `JSONRPCTransport`:
 
 ```python
-# examples/simple_client.py
+# ----------------------------------------
+# Simple JSON-RPC client example using rpcframework
+# ----------------------------------------
+
 import asyncio
 from rpcframework.client.client import JSONRPCTransport
 
+# ----------------------------------------
+# Main async function — creates a client, sends requests,
+# receives responses, and handles notifications/batch calls
+# ----------------------------------------
 async def main():
+    # Create an async transport (client) to communicate with the server
+    # The server should already be running at this address
     transport = JSONRPCTransport("http://127.0.0.1:8001/jsonrpc")
+
     try:
-        res = await transport.call("add", [3, 5])           # => 8
+        # Call the "add" method on the server with parameters [3, 5]
+        # Expected result: 8
+        res = await transport.call("add", [3, 5])
         print("add:", res)
 
+        # Call the "divide" method on the server with parameters a=10, b=2
+        # Expected result: 5.0
         res = await transport.call("divide", {"a": 10, "b": 2})
         print("divide:", res)
 
-        # notification (fire-and-forget)
+        # Send a notification — this does not expect any response (fire-and-forget)
         await transport.notify("some_notification", {"msg": "hello"})
 
-        # batch example
+        # ----------------------------------------
+        # Example: batch request (multiple RPC calls in one HTTP request)
+        # ----------------------------------------
         batch = [
-            {"jsonrpc": "2.0", "method": "add", "params": [1,2], "id": "1"},
-            {"jsonrpc": "2.0", "method": "divide", "params": {"a": 6,"b": 3}, "id": "2"},
+            {"jsonrpc": "2.0", "method": "add", "params": [1, 2], "id": "1"},
+            {"jsonrpc": "2.0", "method": "divide", "params": {"a": 6, "b": 3}, "id": "2"},
         ]
+
+        # Send batch request and print the combined response list
         batch_resp = await transport.batch(batch)
         print("batch resp:", batch_resp)
+
     finally:
+        # Always close the transport session after use
         await transport.close()
 
+
+# ----------------------------------------
+# Entry point — run the async main() function
+# ----------------------------------------
 if __name__ == "__main__":
     asyncio.run(main())
+
 ```
 
 ---
