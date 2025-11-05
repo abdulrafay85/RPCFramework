@@ -5,7 +5,7 @@ from typing import Any, List, Union
 import json
 from ..schemas import RPCRequest, RPCResponse
 from ..server.dispatcher import RPCDispatcher
-from rpcframework.errors import PARSE_ERROR, INVALID_REQUEST
+from rpcframework.server.errors import PARSE_ERROR, INVALID_REQUEST
 
 class HTTPTransport:
     def __init__(self, dispatcher: RPCDispatcher):

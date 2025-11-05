@@ -71,7 +71,7 @@ import json
 import httpx
 from typing import Any, Optional, List, Union
 from rpcframework.schemas import RPCRequest, RPCResponse
-from rpcframework.errors import JSONRPCError
+from rpcframework.server.errors import JSONRPCError
 
 class JSONRPCTransport:
     def __init__(self, url: str):
@@ -120,8 +120,8 @@ from fastapi.responses import JSONResponse
 from typing import Any, List, Union
 import json
 from ..schemas import RPCRequest, RPCResponse
-from ..server.dispatcher import RPCDispatcher
-from errors import PARSE_ERROR, INVALID_REQUEST
+from rpcframework.server.dispatcher import RPCDispatcher
+from rpcframework.server.errors import PARSE_ERROR, INVALID_REQUEST
 
 class HTTPTransport:
     def __init__(self, dispatcher: RPCDispatcher):

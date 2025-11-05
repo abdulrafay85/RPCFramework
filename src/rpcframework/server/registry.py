@@ -174,7 +174,7 @@ from fastapi.responses import JSONResponse, Response
 
 from rpcframework.schemas import RPCRequest, RPCResponse
 from rpcframework.server.dispatcher import RPCDispatcher
-from rpcframework.errors import PARSE_ERROR, INVALID_REQUEST
+from rpcframework.server.errors import PARSE_ERROR, INVALID_REQUEST
 from rpcframework.transport.http import HTTPTransport
 
 # ──────────────────────────────────────────────────────────────

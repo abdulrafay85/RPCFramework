@@ -1,7 +1,7 @@
 # jsonrpc_core/server/dispatcher.py
 import inspect
 from typing import Any, Optional
-from rpcframework.errors import INVALID_PARAMS, JSONRPCError
+from rpcframework.server.errors import INVALID_PARAMS, JSONRPCError
 from typing import Callable, Any, Optional
 from typing import TYPE_CHECKING
 # from ..server.registry import RPCMethodRegistry
