@@ -382,7 +382,13 @@ class RPCMethodRegistry:
 
         app = FastAPI(title=self._name)
         app.post("/jsonrpc")(transport.handle)
-        app.get("/methods")(lambda: self.list_methods())  # Introspection!
+        # app.get("/methods")(lambda: self.list_methods())  # Introspection!
+        
+        # Methods introspection
+        async def methods_endpoint():
+          return JSONResponse(content={"result": self.list_methods(), "error": None})
+
+        app.get("/methods")(methods_endpoint)
 
         self._app = app
 

@@ -1,3 +1,5 @@
+from typing import Dict, Any
+
 # --------------------------------------
 # Version 1
 # --------------------------------------
@@ -81,13 +83,39 @@ class JSONRPCTransport:
     async def call_method(self, method: str, params: Any = None, id: Optional[str] = None) -> Any:
         """Simple call with response"""
         req = RPCRequest(method=method, params=params, id=id or "1")
-        resp = await self.client.post(self.url, json=req.dict(exclude_none=True))
+        resp = await self.client.post(f"{self.url}/jsonrpc", json=req.dict(exclude_none=True))
         resp.raise_for_status()
         data = resp.json()
         if "error" in data:
             err = data["error"]
             raise JSONRPCError(code=err["code"], message=err["message"], data=err.get("data"))
         return data["result"]
+
+    async def get_methods(self) -> Dict[str, Any]:
+        """
+        Fetch all available RPC methods from the agent via GET request.
+        Endpoint: f"{self.url}/methods"
+        """
+        try:
+            resp = await self.client.get(f"{self.url}/methods")
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"HTTP error while fetching methods: {e}") from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"Request error while fetching methods: {e}") from e
+        except ValueError as e:
+            raise RuntimeError(f"Invalid JSON response: {e}") from e
+
+        # Check if the agent returned an error in JSON-RPC format
+        if "error" in data:
+            err = data["error"]
+            raise RuntimeError(f"RPC Error {err.get('code')}: {err.get('message')}")
+
+        # Return the "result" which should be the dictionary of methods
+        # return data
+        return data
+        
 
 
     async def notify(self, method: str, params: Any = None) -> None:
@@ -172,3 +200,4 @@ class HTTPTransport:
             status_code=status,
             content=RPCResponse(error=error.to_dict(), id=id).dict(exclude_none=True)
         )
+
