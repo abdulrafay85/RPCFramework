@@ -27,13 +27,37 @@ class HTTPTransport:
         else:
             resp = await self._handle_single(payload)
             return Response(status_code=204) if resp is None else JSONResponse(resp)
+    
+    # # Version 1
+    # async def _handle_single(self, item: dict) -> Any:
+    #     try:
+    #         req = RPCRequest.parse_obj(item)
+    #     except Exception as e:
+    #         if not isinstance(e, JSONRPCError):
+    #             e = JSONRPCError(-32000, "Server error", str(e))
 
+    #         return self._make_response(error=e, id=req.id)
+
+    #     if req.id is None:  # notification
+    #         try:
+    #             await self.dispatcher.dispatch(req.method, req.params)
+    #         except:
+    #             pass  # ignore errors in notification
+    #         return None
+
+    #     try:
+    #         result = await self.dispatcher.dispatch(req.method, req.params, req.id)
+    #         return self._make_response(result=result["result"], id=req.id)
+    #     except Exception as e:
+    #         return self._make_response(error=e, id=req.id)
+
+    #  Version 2
     async def _handle_single(self, item: dict) -> Any:
         try:
             req = RPCRequest.parse_obj(item)
         except Exception as e:
-            err = INVALID_REQUEST(str(e))
-            return self._make_response(error=err, id=item.get("id"))
+            error = JSONRPCError(-32000, "Server error", str(e))
+            return self._make_response(error=error, id=item.get('id'))
 
         if req.id is None:  # notification
             try:

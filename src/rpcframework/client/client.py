@@ -1,5 +1,9 @@
 from typing import Dict, Any
+import logging
 
+
+
+logger = logging.getLogger(__name__)
 # --------------------------------------
 # Version 1
 # --------------------------------------
@@ -79,27 +83,79 @@ class JSONRPCTransport:
     def __init__(self, url: str):
         self.url = url
         self.client = httpx.AsyncClient(timeout=10.0)
+    
+    ## Version 1
+    # async def call_method(self, method: str, params: Any = None, id: Optional[str] = None) -> Any:
+    #     """Simple call with response"""
+    #     req = RPCRequest(method=method, params=params, id=id or "1")
+    #     resp = await self.client.post(f"{self.url.rstrip('/')}/jsonrpc", json=req.dict(exclude_none=True))
+    #     resp.raise_for_status()
+    #     data = resp.json()
+    #     if "error" in data:
+    #         err = data["error"]
+    #         raise JSONRPCError(code=err["code"], message=err["message"], data=err.get("data"))
+    #     return data["result"]
 
+    ## Version 2
     async def call_method(self, method: str, params: Any = None, id: Optional[str] = None) -> Any:
-        """Simple call with response"""
+        """Make an RPC call to the server.
+        
+        Args:
+            method: Name of the RPC method to call
+            params: Parameters to pass to the method
+            id: Optional request ID. If not provided, a default will be used.
+            
+        Returns:
+            The result of the RPC call
+            
+        Raises:
+            JSONRPCError: If the server returns an error response
+            httpx.RequestError: If there's a network error
+        """
         req = RPCRequest(method=method, params=params, id=id or "1")
-        resp = await self.client.post(f"{self.url}/jsonrpc", json=req.dict(exclude_none=True))
-        resp.raise_for_status()
-        data = resp.json()
-        if "error" in data:
-            err = data["error"]
-            raise JSONRPCError(code=err["code"], message=err["message"], data=err.get("data"))
-        return data["result"]
+        # print(f"req: {req}")
 
+        try:
+            logger.debug(f"Sending RPC request: {method} with params: {params}")
+            resp = await self.client.post(
+                f"{self.url.rstrip('/')}/jsonrpc",
+                json=req.dict(exclude_none=True)
+            )
+            # print(f"resp: {resp}")
+            resp.raise_for_status()
+            data = resp.json()
+            # print(f"data: {data}")
+            
+            if "error" in data:
+                err = data["error"]
+                logger.error(f"RPC Error {err.get('code')}: {err.get('message')}")
+                raise JSONRPCError(
+                    code=err["code"],
+                    message=err["message"],
+                    data=err.get("data")
+                )
+                
+            return data["result"]
+            
+        except httpx.RequestError as e:
+            logger.error(f"Network error while calling {method}: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in call_method: {str(e)}")
+            raise
+
+    ## Version 1
     async def get_methods(self) -> Dict[str, Any]:
         """
         Fetch all available RPC methods from the agent via GET request.
         Endpoint: f"{self.url}/methods"
-        """
+        """ 
         try:
-            resp = await self.client.get(f"{self.url}/methods")
+            resp = await self.client.get(f"{self.url.rstrip('/')}/methods")
+            # print(f"resp: {resp}")
             resp.raise_for_status()
             data = resp.json()
+            print(f"data: {data}")
         except httpx.HTTPStatusError as e:
             raise RuntimeError(f"HTTP error while fetching methods: {e}") from e
         except httpx.RequestError as e:
@@ -108,15 +164,67 @@ class JSONRPCTransport:
             raise RuntimeError(f"Invalid JSON response: {e}") from e
 
         # Check if the agent returned an error in JSON-RPC format
-        if "error" in data:
+        if "error" in data and data["error"]:
             err = data["error"]
             raise RuntimeError(f"RPC Error {err.get('code')}: {err.get('message')}")
 
         # Return the "result" which should be the dictionary of methods
-        # return data
-        return data
+        return [data]
         
-
+    ## Version 2
+    # async def get_methods(self) -> Dict[str, Any]:
+    #     """Fetch all available RPC methods from the server.
+        
+    #     Makes a GET request to the server's /methods endpoint to retrieve
+    #     the list of available RPC methods and their documentation.
+        
+    #     Returns:
+    #         Dict[str, Any]: Dictionary containing the available RPC methods
+    #             and their metadata.
+                
+    #     Raises:
+    #         RuntimeError: If there's an HTTP error, request error, or invalid response.
+    #         JSONRPCError: If the server returns a JSON-RPC formatted error.
+    #     """
+    #     try:
+    #         # Make the GET request to fetch available methods
+    #         response = await self.client.get(f"{self.url.rstrip('/')}/methods")
+    #         response.raise_for_status()
+    #         data = response.json()
+            
+    #         # Log the response data at debug level
+    #         logger.debug(f"Fetched methods: {data}")
+            
+    #         # Handle JSON-RPC error response if present
+    #         if "error" in data and data["error"]:
+    #             error = data["error"]
+    #             logger.error(
+    #                 f"Server returned error: {error.get('code')} - {error.get('message')}"
+    #             )
+    #             raise JSONRPCError(
+    #                 code=error.get("code", -32603),  # Default to Internal Error if no code
+    #                 message=error.get("message", "Unknown error from server"),
+    #                 data=error.get("data")
+    #             )
+                
+    #         return data
+            
+    #     except httpx.HTTPStatusError as e:
+    #         error_msg = f"HTTP error {e.response.status_code} while fetching methods: {str(e)}"
+    #         logger.error(error_msg)
+    #         raise RuntimeError(error_msg) from e
+    #     except httpx.RequestError as e:
+    #         error_msg = f"Network error while fetching methods: {str(e)}"
+    #         logger.error(error_msg)
+    #         raise RuntimeError(error_msg) from e
+    #     except json.JSONDecodeError as e:
+    #         error_msg = f"Invalid JSON response from server: {str(e)}"
+    #         logger.error(error_msg)
+    #         raise RuntimeError(error_msg) from e
+    #     except Exception as e:
+    #         error_msg = f"Unexpected error while fetching methods: {str(e)}"
+    #         logger.error(error_msg)
+    #         raise RuntimeError(error_msg) from e 
 
     async def notify(self, method: str, params: Any = None) -> None:
         """Notification (no response)"""

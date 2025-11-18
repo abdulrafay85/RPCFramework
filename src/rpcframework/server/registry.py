@@ -1,6 +1,15 @@
 from __future__ import annotations
+from datetime import datetime
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+# -----------------------
 # # Versison 1
+# -----------------------
+
 # from typing import Callable, Dict, Any
 # from app.errors import METHOD_NOT_FOUND, INVALID_PARAMS, JSONRPCError
 
@@ -51,9 +60,9 @@ from __future__ import annotations
 #     return wrapper
 
 
-
-## Version 2
-# -------------------------------------
+# -----------------------
+# # Version 2
+# -----------------------
 
 # jsonrpc_core/server/registry.py (continued)
 from dataclasses import dataclass, field
@@ -106,12 +115,13 @@ class _MethodWrapper:
         """Check if the wrapped function is async."""
         return inspect.iscoroutinefunction(self.fn)
 
+
     # ───── Helper: Get signature ─────
     @property
     def signature(self) -> inspect.Signature:
         """Return the function signature."""
         return inspect.signature(self.fn)
-
+    
     # ───── Validation (future-ready) ─────
     def validate_params(self, params: Any) -> None:
         """
@@ -163,6 +173,8 @@ class _MethodWrapper:
 # ------------------------------------------
 # jsonrpc_core/server/registry.py
 
+from rpcframework.discovery.discovery_client import DiscoveryClient  # (hypothetical module)
+from rpcframework.discovery.models import AgentCard  # using the same AgentCard model as the registry
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional, Literal, get_type_hints
@@ -176,6 +188,7 @@ from rpcframework.schemas import RPCRequest, RPCResponse
 from rpcframework.server.dispatcher import RPCDispatcher
 from rpcframework.server.errors import PARSE_ERROR, INVALID_REQUEST
 from rpcframework.transport.http import HTTPTransport
+from rpcframework.config.default import DISCOVERY_URL
 
 # ──────────────────────────────────────────────────────────────
 # Logging
@@ -206,8 +219,18 @@ class Transport(str, Enum):
 
 
 # ──────────────────────────────────────────────────────────────
+# # place default constant in rpcframework/config/defaults.py ideally
+# ──────────────────────────────────────────────────────────────
+discovery_url: str = os.getenv("DISCOVERY_URL", "http://127.0.0.1:8000")
+
+
+
+# ──────────────────────────────────────────────────────────────
 # Settings
 # ──────────────────────────────────────────────────────────────
+import os
+from pydantic import BaseModel
+
 @dataclass(frozen=True)
 class RegistrySettings:
     warn_on_duplicate: bool = True
@@ -215,7 +238,9 @@ class RegistrySettings:
     strict_mode: bool = False
     host: str = "127.0.0.1"
     port: int = 8000
-    mount_path: str | None = None
+    mount_path: str | None = None    
+    auto_register: bool = True
+    discovery_url: str = discovery_url
 
 
 # ──────────────────────────────────────────────────────────────
@@ -225,10 +250,19 @@ class RPCMethodRegistry:
     def __init__(
         self,
         name: str | None = None,
-        settings: dict | None = None,
+        settings: RegistrySettings | dict | None = None,
         **kwargs: Any,
     ):
-        self._settings = RegistrySettings(**(settings or {}), **kwargs)
+       # normalize settings: accept dataclass or dict or None
+        if settings is None:
+            self._settings: RegistrySettings = RegistrySettings()
+        elif isinstance(settings, RegistrySettings):
+            self._settings = settings
+        elif isinstance(settings, dict):
+            self._settings = RegistrySettings(**settings)
+        else:
+            raise TypeError("settings must be RegistrySettings | dict | None")
+    
         self._name = name or "RPCRegistry"
         self._methods: Dict[str, _MethodWrapper] = {}
         self._logger = logging.getLogger("jsonrpc.registry")
@@ -242,6 +276,11 @@ class RPCMethodRegistry:
     @property
     def name(self) -> str:
         return self._name
+
+    @property
+    def method_name(self) -> str:
+        for wrapper in self._methods.values():
+            return wrapper.name
 
     @property
     def methods(self) -> Dict[str, Callable]:
@@ -266,7 +305,6 @@ class RPCMethodRegistry:
 
             hints = get_type_hints(fn)
             return_hint = hints.pop("return", None)
-
             wrapper = _MethodWrapper(
                 fn=fn,
                 name=method_name,
@@ -275,7 +313,6 @@ class RPCMethodRegistry:
                 param_types=hints,
                 return_type=return_hint,
             )
-
             self._methods[method_name] = wrapper
             self._logger.debug(f"Registered: {method_name}")
             return fn
@@ -373,26 +410,135 @@ class RPCMethodRegistry:
         raise NotImplementedError("Streamable HTTP not yet implemented")
 
     # ───── FastAPI App Setup ─────
+    # ────────────────────────────
+    ## Version 1
+    # ────────────────────────────
+    # def _setup_fastapi_app(self):
+    #     if self._app is not None:
+    #         return
+
+    #     self._dispatcher = RPCDispatcher(self)
+    #     transport = HTTPTransport(self._dispatcher)
+
+    #     app = FastAPI(title=self._name)
+    #     app.post("/jsonrpc")(transport.handle)
+    #     # app.get("/methods")(lambda: self.list_methods())  # Introspection!
+        
+    #     # Methods introspection
+    #     async def methods_endpoint():
+    #       return JSONResponse(content={"result": self.list_methods(), "error": None})
+
+    #     app.get("/methods")(methods_endpoint)
+
+    #     self._app = app
+
+    # ──────────────────────────────────
+    ## Version 2
+    # ──────────────────────────────────
+    # def _setup_fastapi_app(self):
+    #     if self._app is not None:
+    #         return
+    #     self._dispatcher = RPCDispatcher(self)
+    #     transport = HTTPTransport(self._dispatcher)
+
+    #     app = FastAPI(title=self._name)
+    #     app.post("/jsonrpc")(transport.handle)
+    #     # app.get("/methods")(lambda: self.list_methods())  # Introspection!
+
+    #     # Methods introspection
+    #     async def methods_endpoint():
+    #       return JSONResponse(content={"result": self.list_methods(), "error": None})
+
+    #     app.get("/methods")(methods_endpoint)
+
+    #     # On startup, automatically register this agent with the discovery service
+    #     async def on_startup():
+    #         agent_card = AgentCard(
+    #             name=self._name,
+    #             endpoint=f"http://{self._settings.host}:{self._settings.port}{self._settings.mount_path or '/jsonrpc'}",
+    #             capabilities=list(self._methods.keys()),
+    #             description=f"RPC service {self._name}"
+    #         ).model_dump()
+    #         await DiscoveryClient(f"{self._settings.discovery_url}").register_agent(agent_card)
+
+    #     app.add_event_handler("startup", on_startup)
+    #     self._app = app
+
+
+    # ---------------------
+    ## Version 3
+    # ---------------------
     def _setup_fastapi_app(self):
         if self._app is not None:
             return
 
         self._dispatcher = RPCDispatcher(self)
         transport = HTTPTransport(self._dispatcher)
-
-        app = FastAPI(title=self._name)
-        app.post("/jsonrpc")(transport.handle)
-        # app.get("/methods")(lambda: self.list_methods())  # Introspection!
         
-        # Methods introspection
-        async def methods_endpoint():
-          return JSONResponse(content={"result": self.list_methods(), "error": None})
+        # Create FastAPI app
+        app = FastAPI(title=self._name)
 
+        # RPC endpoint 
+        app.post("/jsonrpc")(transport.handle)
+
+        # Methods introspection endpoint
+        async def methods_endpoint():
+            return JSONResponse(content={"result": self.list_methods(), "error": None})
+        
+        # Introspection endpoint
         app.get("/methods")(methods_endpoint)
 
-        self._app = app
+        # On startup: optionally auto-register with discovery (non-fatal)
+        async def on_startup():
+            if not self._settings.auto_register:
+                self._logger.debug("auto_register disabled, skipping discovery registration")
+                return
 
-    # ───── Handle Payload (shared) ─────
+           # build endpoint safely
+            # mount = (self._settings.mount_path or "").rstrip("/")
+
+            # ensure at least "/jsonrpc" at end
+            # endpoint_path = mount if mount else ""
+
+            endpoint = f"http://{self._settings.host}:{self._settings.port}"
+            # print("endpoint", endpoint)
+
+            agent_card = AgentCard(
+                name=self.name,
+                version="1.0.0",
+                endpoint=endpoint,
+                health_url=None,
+                capabilities=list(self._methods.keys()),
+                description=f"RPC service {self._name}",
+                registered_at=datetime.utcnow()  # agar yeh set kar rahe ho
+            ).model_dump()
+
+            # Fix datetime serialization
+            agent_card['endpoint'] = str(agent_card['endpoint'])
+            if agent_card['health_url'] is not None:
+                agent_card['health_url'] = str(agent_card['health_url'])
+
+            # Convert datetime to ISO string
+            if isinstance(agent_card.get('registered_at'), datetime):
+                agent_card['registered_at'] = agent_card['registered_at'].isoformat()
+
+           
+            try:
+                discovery_url = self._settings.discovery_url
+                self._logger.debug(f"Registering to discovery {discovery_url} -> {agent_card['name']}")
+                client = DiscoveryClient(discovery_url)
+                await client.register_agent(agent_card)
+                self._logger.info(f"Registered {agent_card['name']} with discovery")
+            except Exception as e:
+                # log but do not fail startup
+                self._logger.warning(f"Discovery registration failed (non-fatal): {e}")
+
+        app.add_event_handler("startup", on_startup)
+        self._app = app
+ 
+
+    # ───── Handle Payload (
+    # qshared) ─────
     async def _handle_payload(self, payload: dict | list) -> Any:
         if isinstance(payload, list):
             responses = [r for r in [await self._handle_single(p) for p in payload] if r]
@@ -426,6 +572,3 @@ class RPCMethodRegistry:
             error=error.to_dict() if isinstance(error, Exception) and hasattr(error, "to_dict") else error,
             id=id
         ).dict(exclude_none=True)
-
-
-

@@ -3,20 +3,30 @@ import asyncio
 import uuid
 from datetime import datetime
 
-from rpcframework.server.registry import RPCMethodRegistry
+from rpcframework.server.registry import RPCMethodRegistry, RegistrySettings
 
 # Simple in-memory DB (demo only)
 INVOICES = {}  # invoice_id -> dict
 UNPROCESSED_PAYMENTS = []  # just to simulate notifications
 
-settings = {
-    "host": "127.0.0.1",
-    "port": 8002,
-    "mount_path": "/jsonrpc",
-}
+# settings = {
+#     "host": "127.0.0.1",
+#     "port": 8002,
+#     "mount_path": "/jsonrpc",
+# }
 
+## Settings  
+settings = RegistrySettings(
+    host="127.0.0.1",
+    port=8002,
+    # mount_path="/jsonrpc",
+    discovery_url="http://127.0.0.1:8000",
+)
+
+# Create registry instance
 rpc = RPCMethodRegistry(name="billing", settings=settings)
 
+# Register methods
 @rpc.register("create_invoice", description="Create an invoice. params: {client: str, amount: float}")
 def create_invoice(client: str, amount: float):
     """Create invoice and return invoice_id"""
@@ -36,13 +46,10 @@ def create_invoice(client: str, amount: float):
     INVOICES[invoice_id] = invoice
     return invoice
 
+# Register method
 @rpc.register("get_invoice", description="Get invoice by id. params: {invoice_id: str}")
 def get_invoice(invoice_id: str):
-    inv = INVOICES.get(invoice_id)
-    if not inv:
-        # Use JSON-RPC server error factories in your framework; here raise generic
-        raise ValueError("invoice not found")
-    return inv
+    return "invoice_id"
 
 @rpc.register("list_invoices", description="List all invoices")
 def list_invoices():
@@ -69,6 +76,7 @@ async def process_payment(invoice_id: str, amount: float):
         inv["paid_at"] = datetime.utcnow().isoformat() + "Z"
         return {"status": "paid", "invoice_id": invoice_id}
     return {"status": "ignored", "invoice_id": invoice_id}
+
 
 if __name__ == "__main__":
     print("Starting billing RPC server on http://127.0.0.1:8002/jsonrpc")
