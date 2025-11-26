@@ -14,6 +14,7 @@ AgentMesh allows developers to register specialized AI agents (text, vision, pla
   * [Server](#server)
   * [Client](#client)
 * [How AgentMesh Works](#how-agentmesh-works)
+* [Examples](#examples)
 * [Upcoming Features](#upcoming-features)
 * [License](#license)
 
@@ -154,6 +155,22 @@ AgentMesh is a Python framework that manages multiple independent AI agents thro
 4. The system provides monitoring, logging, and fault-tolerance.
 
 > Simple: Multiple independent agents, centralized registry, easy discovery & monetization, real-time calls.
+
+---
+
+## Examples
+
+The **`examples/` folder** on GitHub contains two files demonstrating a decentralized AI agent network.
+
+### **1. `customer_support_agent.py`**
+
+An AI Customer Support Agent that handles billing, refunds, technical issues, and delivery queries.
+Supports multiple languages and automatically registers with the RPC framework.
+
+### **2. `test_customer_support.py`**
+
+A test client that automatically discovers the agent, sends queries, checks agent health,
+and shows which expert agent handled each query.
 
 ---
 
