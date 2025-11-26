@@ -1,255 +1,187 @@
-# rpcframework
+# AgentMesh
 
-Lightweight JSON-RPC 2.0 framework for Python — built on top of **FastAPI**, **anyio** and **uvicorn**.
-Designed for simple, fast development of JSON-RPC services with decorator-based method registration, async support, notifications and batch requests.
+> Production-grade Python framework for building distributed AI agent systems with centralized service discovery, subscription management, and JSON-RPC 2.0 communication.
 
----
-
-> Developed as part of a learning project to understand client-server communication and Python frameworks.
+AgentMesh allows developers to register specialized AI agents (text, vision, planning, etc.), discover them, subscribe (free/paid), and call them directly via JSON-RPC 2.0. It blends **FastAPI’s developer-friendly experience** with **service-mesh-inspired architecture**, without the overhead of Kubernetes.
 
 ---
 
-## Table of contents
+## Table of Contents
 
 * [Overview](#overview)
-* [Key features](#key-features)
-* [Install](#install)
-* [Quickstart — server](#quickstart---server)
-* [Quickstart — client](#quickstart---client)
-* [Components & architecture](#components--architecture)
-* [Examples](#examples)
-* [Production readiness checklist](#production-readiness-checklist)
-* [Contributing](#contributing)
+* [Key Features](#key-features)
+* [Quickstart](#quickstart)
+  * [Server](#server)
+  * [Client](#client)
+* [How AgentMesh Works](#how-agentmesh-works)
+* [Upcoming Features](#upcoming-features)
 * [License](#license)
 
 ---
 
 ## Overview
 
-**rpcframework** makes building JSON-RPC 2.0 services fast, simple and predictable.
+Modern AI applications rely on multiple specialized agents:
 
-* **Register functions as RPC methods:** decorate a Python function and it becomes an RPC method callable by clients — no manual HTTP route wiring required.
-* **First-class async & sync support:** both `async def` and regular functions are supported transparently; the framework handles awaiting and invocation semantics for you.
-* **Notifications & batch requests:** supports fire-and-forget notifications (`id = null`) and JSON-RPC batch requests to reduce network overhead and improve throughput.
-* **Transport-agnostic design:** currently ships with an HTTP transport (FastAPI); architecture allows alternative transports (STDIO, SSE, streamable HTTP) without changing business logic.
-* **Introspection:** a `/methods` endpoint exposes available RPC methods and their signatures to help development and discoverability.
+* **Text agents** – NLP, summarization, translation
+* **Vision agents** – Image analysis and generation
+* **Planning agents** – Task orchestration
+* **Domain-specific agents** – Specialized problem-solving
 
-**How it simplifies development**
-
-* **Minimal boilerplate:** write your business logic as plain functions and expose them via a decorator — the framework handles parsing, validation and response formatting.
-* **Built-in error mapping:** JSON-RPC standard error codes and structured error objects are supported so clients get consistent error responses.
-* **Async-ready:** seamless async support enables efficient I/O-bound services.
-* **Easy client integration:** an async client (`JSONRPCTransport`) provides `call`, `notify`, and `batch` helpers for straightforward client usage.
+AgentMesh solves the challenge of **discovering, managing, and communicating** with distributed agents reliably.
 
 ---
 
-## Key features
+## Key Features
 
-* JSON-RPC 2.0 request/response model (requests, responses, error objects, notifications, batch requests)
-* Decorator-based registration via `RPCMethodRegistry.register`
-* Async-first design — supports `async` handlers and sync handlers transparently
-* Transport-agnostic registry design (HTTP implemented; STDIO/SSE placeholders)
-* Built-in introspection (`/methods`) for developer convenience
+* **Developer-Friendly Registration:** Developers register their AI agent by creating a RPCMethodRegistry, decorating agent methods with @register, and optionally enabling auto_register to automatically publish the agent to the discovery service with full metadata and capabilities.
+* **Flexible Discovery:** Name-based and semantic search (future) for natural-language queries.
+* **Subscription & Monetization:** Free, freemium, paid tiers; API keys, quotas, usage tracking.
+* **Reliable RPC Calls:** JSON-RPC 2.0 compliant; direct agent communication; optional smart routing.
+* **Production Ready:** Health monitoring, logging, extensible transport (HTTP/SSE), error handling, federated agents.
 
 ---
 
-## Install
+## Quickstart
 
-Create a virtual environment and install dependencies (example `requirements.txt` should include `fastapi`, `uvicorn`, `httpx`, `pydantic`, `anyio`):
+### Server
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+# Run Discovery Service
+python -m rpcframework.discovery.discovery_service
 ```
+
+**Example Agent Registration:**
 
 ---
 
-## Quickstart — server
+Developers can register their AI agent simply by creating an `RPCMethodRegistry` instance, decorating agent methods with `@register`, and optionally enabling `auto_register` to automatically register the agent with the central discovery service. The registry captures the agent’s **name, endpoint, capabilities, description, parameter types, and version**, allowing immediate introspection and RPC calls.
 
-Minimal server using the registry and decorator API:
+**Example:**
 
 ```python
-# ----------------------------------------
-# Simple JSON-RPC server example using rpcframework
-# ----------------------------------------
+from rpcframework.server.registry import RPCMethodRegistry, RegistrySettings
 
-# Import RPCMethodRegistry to register and run RPC methods
-from rpcframework.server.registry import RPCMethodRegistry
+# Create agent registry with auto-registration enabled
+registry = RPCMethodRegistry(
+    name="weather-agent",
+    settings=RegistrySettings(auto_register=True)
+)
 
-# Server configuration settings
-# host: local address, port: where server runs, mount_path: RPC endpoint URL
-settings = {
-    "host": "127.0.0.1",
-    "port": 8001,
-    "mount_path": "/jsonrpc"
-}
+# Register an agent method
+@registry.register(description="Fetch weather for a city")
+async def get_weather(city: str):
+    return {"city": city, "temperature": 22, "condition": "sunny"}
 
-# Create RPCMethodRegistry instance
-# This object handles registration and execution of RPC methods
-rpc = RPCMethodRegistry(name="example", settings=settings)
-
-# ----------------------------------------
-# Define and register RPC methods
-# ----------------------------------------
-
-@rpc.register("add", description="Add two numbers")
-def add(a: float, b: float) -> float:
-    """Return the sum of two numbers."""
-    return a + b
-
-
-@rpc.register("divide", description="Divide two numbers")
-def divide(a: float, b: float) -> float:
-    """Return the division result of two numbers."""
-    if float(b) == 0:
-        # Handle division by zero error
-        raise ValueError("Division by zero")
-    return float(a) / float(b)
-
-
-# ----------------------------------------
-# Run the server
-# ----------------------------------------
-if __name__ == "__main__":
-    # Start the RPC server on host:port
-    # It will listen for requests at http://127.0.0.1:8001/jsonrpc
-    rpc.run(host="127.0.0.1", port=8001)
-
+# Run the RPC server (FastAPI + HTTP)
+registry.run(host="127.0.0.1", port=8001)
 ```
 
-Run:
+**Here the developer only needs to:**
+
+1. Define a registry for their agent.
+2. Decorate methods with `@register`.
+3. Optionally rely on `auto_register=True` to publish to the discovery service.
+
+---
+
+### Client
 
 ```bash
-python examples/simple_server.py
+# Run this after your discovery service and agents are running
 ```
 
-Server listens at `http://127.0.0.1:8001/jsonrpc`. Introspection is available at `http://127.0.0.1:8001/methods` (protect in production).
+**Example RPC Client Usage:**
 
 ---
 
-## Quickstart — client
+Developers can interact with registered AI agents by creating an `RPCClient` instance. The client automatically queries the discovery service to find agents that support a specific method and then makes a JSON-RPC call to that agent. This abstracts away endpoint management and load balancing.
 
-Example async client usage via `JSONRPCTransport`:
+**Example:**
 
 ```python
-# ----------------------------------------
-# Simple JSON-RPC client example using rpcframework
-# ----------------------------------------
-
+from rpcframework.client.rpc_client import RPCClient
 import asyncio
-from rpcframework.client.client import JSONRPCTransport
 
-# ----------------------------------------
-# Main async function — creates a client, sends requests,
-# receives responses, and handles notifications/batch calls
-# ----------------------------------------
 async def main():
-    # Create an async transport (client) to communicate with the server
-    # The server should already be running at this address
-    transport = JSONRPCTransport("http://127.0.0.1:8001/jsonrpc")
+    # Connect to the discovery service
+    client = RPCClient()
+    
+    # Discover agents supporting the 'get_weather' method
+    agents = await client.discover("get_weather")
+    print(f"Found {len(agents)} agents")
+    
+    # Call the method on a selected agent
+    result = await client.call("get_weather", params={"city": "London"})
+    print(result)
 
-    try:
-        # Call the "add" method on the server with parameters [3, 5]
-        # Expected result: 8
-        res = await transport.call("add", [3, 5])
-        print("add:", res)
-
-        # Call the "divide" method on the server with parameters a=10, b=2
-        # Expected result: 5.0
-        res = await transport.call("divide", {"a": 10, "b": 2})
-        print("divide:", res)
-
-        # Send a notification — this does not expect any response (fire-and-forget)
-        await transport.notify("some_notification", {"msg": "hello"})
-
-        # ----------------------------------------
-        # Example: batch request (multiple RPC calls in one HTTP request)
-        # ----------------------------------------
-        batch = [
-            {"jsonrpc": "2.0", "method": "add", "params": [1, 2], "id": "1"},
-            {"jsonrpc": "2.0", "method": "divide", "params": {"a": 6, "b": 3}, "id": "2"},
-        ]
-
-        # Send batch request and print the combined response list
-        batch_resp = await transport.batch(batch)
-        print("batch resp:", batch_resp)
-
-    finally:
-        # Always close the transport session after use
-        await transport.close()
-
-
-# ----------------------------------------
-# Entry point — run the async main() function
-# ----------------------------------------
-if __name__ == "__main__":
-    asyncio.run(main())
-
+asyncio.run(main())
 ```
 
----
+**Here the developer only needs to:**
 
-## Components & architecture
-
-Concise description of the main modules included in the repository:
-
-### `schemas.py` (Pydantic models)
-
-Defines the canonical JSON-RPC shapes: `RPCRequest`, `RPCErrorObject`, and `RPCResponse`. Pydantic ensures consistent validation and (de)serialization.
-
-### `errors.py`
-
-Provides the `JSONRPCError` dataclass and helper factories (`PARSE_ERROR`, `INVALID_REQUEST`, `METHOD_NOT_FOUND`, `INVALID_PARAMS`, `INTERNAL_ERROR`, `SERVER_ERROR`) so server-side errors map to standard JSON-RPC error objects.
-
-### `transport.py` (client)
-
-`JSONRPCTransport` is an async httpx wrapper exposing `call`, `notify`, `batch`, and `close` helpers for client communication.
-
-### `_MethodWrapper` (registry internals)
-
-Wraps registered functions, capturing metadata (name, description, param types, return type, optional JSON schema). Provides helpers for introspection and parameter validation.
-
-### `dispatcher.py`
-
-Invokes registered methods (supporting both sync and async handlers) and converts runtime errors into JSON-RPC errors.
-
-### `transport/http.py` (HTTPTransport)
-
-FastAPI handler that parses requests, supports single & batch payloads, handles notifications, and returns structured `RPCResponse` objects.
-
-### `server/registry.py` (`RPCMethodRegistry`)
-
-Primary API: method registration, method listing (introspection), and `run()` with multiple transport options (HTTP and STDIO implemented; SSE/streamable HTTP placeholders).
+1. Instantiate `RPCClient`.
+2. Call `discover("agent_name")` to find agents providing the required method.
+3. Use `call("method_name", params=...)` to execute the RPC method on a discovered agent.
+4. Let the client automatically select an agent and handle the JSON-RPC transport.
 
 ---
 
-## Examples
+**Key Notes (from context):**
 
-* **Minimal**: `examples/simple_server.py` and `examples/simple_client.py` (add/divide demo).
-* **Real-world idea**: `examples/invoice_server.py` and `examples/invoice_client.py` to demonstrate invoice creation, listing and asynchronous payment notifications (demo uses in-memory store).
+* `RPCClient` uses `DiscoveryClient` internally to query the discovery service.
+* `call()` automatically performs **agent selection** (random load balancing) and sets up a `JSONRPCTransport` to communicate with the agent.
+* Supports **async calls**, so you can integrate it easily into modern Python async applications.
+* Developers do not need to know the actual endpoint of the agent; the discovery service handles it.
 
 ---
 
-## Contributing
 
-Contributions welcome. Suggested first issues:
+## How AgentMesh Works – Federated Agents & Centralized Discovery
 
-* Fix parameter binding in `_MethodWrapper.validate_params`.
-* Normalize and secure HTTP error responses in `HTTPTransport._make_response`.
-* Add `.gitattributes` to normalize line endings and an examples folder.
+AgentMesh is a Python framework that manages multiple independent AI agents through a centralized system.
 
-Workflow: fork → branch `feature/...` → tests → PR.
+* **Federated Agents:** Each AI agent (text, vision, planning, etc.) runs in its own instance and operates independently.
+* **Centralized Discovery:** All agents register their metadata (name, capabilities, version) in a central registry. Clients can easily discover and call them without knowing their exact location.
+* **Direct Communication:** Clients make direct JSON-RPC calls to agents, while the system automatically handles load balancing and endpoint management.
+* **Subscription & Monetization:** Agents can be free or paid, and usage can be tracked for monetization.
+
+**Flow:**
+
+1. The developer creates an agent → it registers in the central registry with `auto_register=True`.
+2. The client discovers the agent → the central discovery selects the best agent.
+3. The client calls the agent → direct JSON-RPC communication takes place.
+4. The system provides monitoring, logging, and fault-tolerance.
+
+> Simple: Multiple independent agents, centralized registry, easy discovery & monetization, real-time calls.
+
+---
+
+## Upcoming Features
+
+We are currently enhancing the RPC client and discovery system with the following updates:
+
+1. **Agent Subscription & Paid Access:**
+
+   * Agent profiles returned by `find` will include a `subscribe` property.
+   * Once subscribed, the `paid` flag will be set to `true`, and an **API key** will be issued to call that agent.
+   * A new `subscribe` method will handle the subscription process.
+
+2. **Enhanced Load Balancing:**
+
+   * Currently, agents are selected randomly.
+   * Future updates will introduce smarter **load-balancing** based on performance and availability.
+
+3. **Semantic Search for Agents:**
+
+   * Agent discovery is currently name-based.
+   * We will add **semantic search** so clients can find agents based on capabilities and context, not just exact names.
+
+> These features are in development and will be available in upcoming releases.
 
 ---
 
 ## License
 
-This project is licensed under the **MIT License**.
+MIT License © 2025 AgentMesh Contributors
 
-You are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of this software, under the following conditions:
-
-* You must include the original copyright notice and this permission notice in all copies or substantial portions of the software.
-* The software is provided "as is", without warranty of any kind, express or implied.
-
-For more details, see the [MIT License](https://opensource.org/licenses/MIT).

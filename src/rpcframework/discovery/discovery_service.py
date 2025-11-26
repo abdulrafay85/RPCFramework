@@ -68,6 +68,7 @@ async def register_agent(agent: AgentCard):
         )
         conn.commit()
         return agent
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to register agent: {e}")
 

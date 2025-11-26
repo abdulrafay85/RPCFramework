@@ -159,21 +159,21 @@ registry = RPCMethodRegistry(
     )
 )
 
-# # Version 1
-# @registry.register(
-#     name="customer_support",
-#     description="Full AI customer support (Urdu/English/Hindi) — WhatsApp style"
-# )
-# async def rpc_customer_support(message: str, user_id: str = "user123", session_id: str = None):
-#     return await customer_support(message, user_id, session_id)
+# Version 1
+@registry.register(
+    name="customer_support",
+    description="Full AI customer support (Urdu/English/Hindi) — WhatsApp style"
+)
+async def rpc_customer_support(message: str, user_id: str = "user123", session_id: str = None):
+    return await customer_support(message, user_id, session_id)
 
-# Version 2
-@registry.register(name="customer_support", description="AI Customer Support in Urdu/English")
-async def rpc_customer_support(message: str, user_id: str = "guest", session_id: str = None):
-    reply_data = await customer_support(message, user_id, session_id)
+# # Version 2
+# @registry.register(name="customer_support", description="AI Customer Support in Urdu/English")
+# async def rpc_customer_support(message: str, user_id: str = "guest", session_id: str = None):
+#     reply_data = await customer_support(message, user_id, session_id)
     
-    # Return just the reply_data, not wrapped in a JSON-RPC response
-    return reply_data
+#     # Return just the reply_data, not wrapped in a JSON-RPC response
+#     return reply_data
 
 
 @registry.register(description="Support agent health check")
@@ -199,3 +199,4 @@ if __name__ == "__main__":
     print("Languages: Urdu, English, Hindi, Roman Urdu")
     print("="*70)
     registry.run(port=8004)
+

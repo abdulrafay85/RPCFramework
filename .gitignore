@@ -17,3 +17,6 @@ wheels/
 *.sqlite
 database/
 data/
+
+# README_2.md 
+README_2.md

@@ -19,7 +19,6 @@ Then watch the magic: just say anything, and AI responds like a real human!
 import asyncio
 from rpcframework.client.rpc_client import RPCClient
 
-
 async def main(service_name: str) -> None:
     # Initialize client — automatically connects to Discovery Service
     print("Initializing RPC Client (with auto-discovery)...")
@@ -29,20 +28,20 @@ async def main(service_name: str) -> None:
     # Step 1: Explicit Discovery — Find the agent dynamically
     # ──────────────────────────────────────────────────────────────
     # print(f"\nDiscovering agent: '{service_name}' via Discovery Service...")
-    # try:
-    #     agent_info = await client.find_agent(service_name)
-    #     print(f"Agent discovered successfully!")
-    #     print(f"   • Name       : {agent_info.get('name')}")
-    #     print(f"   • Endpoint   : {agent_info.get('endpoint')}")
-    #     print(f"   • Capabilities: {', '.join(agent_info.get('capabilities', []))}")
-    #     print("   → Ready to chat!")
+    try:
+        agent_info = await client.find_agent("customer_support")
+        print(f"Agent discovered successfully!")
+        print(f"   • Name       : {agent_info.get('name')}")
+        print(f"   • Endpoint   : {agent_info.get('endpoint')}")
+        print(f"   • Capabilities: {', '.join(agent_info.get('capabilities', []))}")
+        print("   → Ready to chat!")
         
     #     # Agent found successfully return agent_info 
-    #     return agent_info
+        return agent_info
     
-    # except Exception as e:
-    #     print(f"Discovery failed: {e}")
-    #     print("   Make sure discovery_service.py and the support agent are running.")
+    except Exception as e:
+        print(f"Discovery failed: {e}")
+        print("   Make sure discovery_service.py and the support agent are running.")
 
     # print("\n" + "="*70)
     # print("   LIVE CUSTOMER SUPPORT CHAT (Powered by OpenAI + Your Framework)")
@@ -65,7 +64,7 @@ async def main(service_name: str) -> None:
     for msg in test_messages:
         print(f"\nYou → {msg}")
         try:
-            response = await client.call(service_name, {"message": msg, "user_id": "guest", "session_id": None})
+            response = await client.call(vice_naserme, {"message": msg, "user_id": "guest", "session_id": None})
             print(f"Support → {response}")
 
             # Optional: show which expert handled it
