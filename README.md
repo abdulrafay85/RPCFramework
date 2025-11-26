@@ -62,19 +62,79 @@ Developers can register their AI agent simply by creating an `RPCMethodRegistry`
 
 ```python
 from rpcframework.server.registry import RPCMethodRegistry, RegistrySettings
+import os
+from datetime import datetime, timezone
+from typing import Dict, Any
 
-# Create agent registry with auto-registration enabled
+from agents import (
+    Agent, Runner, AsyncOpenAI,
+    OpenAIChatCompletionsModel, RunConfig
+)
+
+from agents.tools import function_tool
+from rpcframework.server.registry import RPCMethodRegistry, RegistrySettings
+
+
+# --- 1. Setup OpenAI-Compatible Client (Gemini Example) ---
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY is missing.")
+
+external_client = AsyncOpenAI(
+    api_key=GEMINI_API_KEY,
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+)
+
+model = OpenAIChatCompletionsModel(
+    model="gemini-2.5-flash",
+    openai_client=external_client
+)
+
+config = RunConfig(model=model, model_provider=external_client)
+
+
+# --- 2. Weather Tool ---
+@function_tool
+def get_weather(city: str) -> str:
+    """Return dummy weather output."""
+    return f"The weather in {city} is sunny today."
+
+
+# --- 3. Weather Agent ---
+weather_agent = Agent(
+    name="weather-agent",
+    instructions="You are a helpful weather assistant.",
+    tools=[get_weather],
+)
+
+
+# --- 4. Register With RPC Framework ---
 registry = RPCMethodRegistry(
     name="weather-agent",
     settings=RegistrySettings(auto_register=True)
 )
 
-# Register an agent method
-@registry.register(description="Fetch weather for a city")
-async def get_weather(city: str):
-    return {"city": city, "temperature": 22, "condition": "sunny"}
 
-# Run the RPC server (FastAPI + HTTP)
+# --- 5. Exposed RPC Method ---
+@registry.register(name="get_weather", description="Get weather for a city")
+async def get_weather_rpc(city: str, user_id: str = "user123") -> Dict[str, Any]:
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    result = await Runner.run(
+        weather_agent,
+        city,
+        context={"user_id": user_id, "timestamp": timestamp},
+        run_config=config,
+    )
+
+    return {
+        "status": "success",
+        "reply": result.final_output,
+        "handled_by": result.last_agent.name,
+    }
+
+
+# --- 6. Run RPC Server ---
 registry.run(host="127.0.0.1", port=8001)
 ```
 
@@ -104,19 +164,22 @@ Developers can interact with registered AI agents by creating an `RPCClient` ins
 from rpcframework.client.rpc_client import RPCClient
 import asyncio
 
+import asyncio
+from rpcframework.client.rpc_client import RPCClient
+
 async def main():
-    # Connect to the discovery service
     client = RPCClient()
-    
-    # Discover agents supporting the 'get_weather' method
-    agents = await client.discover("get_weather")
-    print(f"Found {len(agents)} agents")
-    
-    # Call the method on a selected agent
+
+    # find agents offering get_weather
+    agents = await client.find_agent("get_weather")
+    print("Discovered agents:", agents)
+
+    # Call the agent
     result = await client.call("get_weather", params={"city": "London"})
-    print(result)
+    print("Agent Response:", result)
 
 asyncio.run(main())
+
 ```
 
 **Here the developer only needs to:**
