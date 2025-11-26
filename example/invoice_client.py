@@ -6,7 +6,7 @@ from rpcframework.client.rpc_client import RPCClient
 
 # from rpcframework.client.client import JSONRPCTransport  # assume this is your transport class
 
-# # RPC_URL = "http://127.0.0.1:8002/jsonrpc"
+# RPC_URL = "http://127.0.0.1:8002/jsonrpc"
 
 # RPC_URL = "http://127.0.0.1:8002"
 

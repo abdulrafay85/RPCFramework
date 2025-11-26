@@ -19,7 +19,6 @@ UNPROCESSED_PAYMENTS = []  # just to simulate notifications
 settings = RegistrySettings(
     host="127.0.0.1",
     port=8002,
-    # mount_path="/jsonrpc",
     discovery_url="http://127.0.0.1:8000",
 )
 
@@ -81,3 +80,5 @@ async def process_payment(invoice_id: str, amount: float):
 if __name__ == "__main__":
     print("Starting billing RPC server on http://127.0.0.1:8002/jsonrpc")
     rpc.run(host="127.0.0.1", port=8002)
+
+    
